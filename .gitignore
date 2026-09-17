@@ -1,0 +1,16 @@
+# Build output
+build/
+out/
+cmake-build-*/
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.suo
+
+# Binaries and intermediates
+*.exe
+*.pdb
+*.obj
+*.ilk
+*.idb
