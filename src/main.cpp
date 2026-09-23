@@ -1,19 +1,133 @@
 #include <windows.h>
-#include <lmcons.h>
-#include <array>
-#include <cstdlib>
-#include <cwctype>
+
 #include <iostream>
-#include <limits>
 #include <string>
-#include "bitlocker/bitlocker.hpp"
+
+#include "bitlocker/bitlocker_menu.hpp"
+
 namespace {
-constexpr WORD kNormal=FOREGROUND_RED|FOREGROUND_GREEN|FOREGROUND_BLUE;
-constexpr WORD kAccent=FOREGROUND_GREEN|FOREGROUND_BLUE|FOREGROUND_INTENSITY;
-void setColor(WORD c){SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),c);}
-void clear(){HANDLE h=GetStdHandle(STD_OUTPUT_HANDLE); CONSOLE_SCREEN_BUFFER_INFO i{}; if(!GetConsoleScreenBufferInfo(h,&i))return; DWORD n=0,cells=static_cast<DWORD>(i.dwSize.X)*i.dwSize.Y; COORD p{0,0}; FillConsoleOutputCharacterW(h,L' ',cells,p,&n);FillConsoleOutputAttribute(h,i.wAttributes,cells,p,&n);SetConsoleCursorPosition(h,p);}
-bool admin(){HANDLE t=nullptr;if(!OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&t))return false;TOKEN_ELEVATION e{};DWORD n=0;BOOL ok=GetTokenInformation(t,TokenElevation,&e,sizeof(e),&n);CloseHandle(t);return ok&&e.TokenIsElevated;}
-void header(){setColor(kAccent);std::wcout<<L"\n  ERSTEINRICHTUNG  |  Native C++ prototype\n"<<std::wstring(72,L'=')<<L"\n";setColor(kNormal);std::wcout<<L"  Admin: "<<(admin()?L"Yes":L"No")<<L"\n"<<std::wstring(72,L'-')<<L"\n";}
-void placeholder(const wchar_t* label){clear();header();std::wcout<<L"  "<<label<<L" is not implemented yet.\n\nPress Enter to return...";std::wstring s;std::getline(std::wcin,s);}
+
+constexpr WORD kDefaultColor =
+    FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+constexpr WORD kAccentColor =
+    FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+
+void setConsoleColor(WORD color) {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
 }
-int wmain(){SetConsoleOutputCP(CP_UTF8);SetConsoleTitleW(L"Ersteinrichtung");if(!admin()){std::wcerr<<L"Run as administrator.\n";return 1;} for(;;){clear();header();setColor(kAccent);std::wcout<<L"  MAIN MENU\n\n";setColor(kNormal);std::wcout<<L"  [1] Run initial setup\n  [2] Windows Update\n  [3] Tools\n  [4] Extras\n  [5] BitLocker\n  [0] Exit\n\nSelect an option: ";std::wstring input;if(!std::getline(std::wcin,input))return 0;if(input==L"0"||input==L"q")return 0;if(input==L"5")bitlocker::menu();else if(input==L"1"||input==L"2"||input==L"3"||input==L"4")placeholder(L"This feature");}}
+
+void clearConsole() {
+    const HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    CONSOLE_SCREEN_BUFFER_INFO info{};
+    if (!GetConsoleScreenBufferInfo(console, &info)) {
+        return;
+    }
+
+    const DWORD cells =
+        static_cast<DWORD>(info.dwSize.X) * static_cast<DWORD>(info.dwSize.Y);
+    const COORD origin{0, 0};
+    DWORD written = 0;
+
+    FillConsoleOutputCharacterW(console, L' ', cells, origin, &written);
+    FillConsoleOutputAttribute(console, info.wAttributes, cells, origin, &written);
+    SetConsoleCursorPosition(console, origin);
+}
+
+bool isRunningAsAdministrator() {
+    HANDLE token = nullptr;
+
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        return false;
+    }
+
+    TOKEN_ELEVATION elevation{};
+    DWORD returnedSize = 0;
+    const BOOL succeeded = GetTokenInformation(
+        token,
+        TokenElevation,
+        &elevation,
+        sizeof(elevation),
+        &returnedSize);
+
+    CloseHandle(token);
+    return succeeded && elevation.TokenIsElevated != 0;
+}
+
+void printHeader() {
+    setConsoleColor(kAccentColor);
+    std::wcout
+        << L"\n  ERSTEINRICHTUNG\n"
+        << L"  Windows setup helper\n"
+        << L"========================================================================\n";
+
+    setConsoleColor(kDefaultColor);
+    std::wcout
+        << L"  Administrator: "
+        << (isRunningAsAdministrator() ? L"yes" : L"no")
+        << L"\n\n";
+}
+
+void waitForEnter() {
+    std::wcout << L"\nPress Enter to return...";
+    std::wstring ignored;
+    std::getline(std::wcin, ignored);
+}
+
+void showPlaceholder(const std::wstring& title) {
+    clearConsole();
+    printHeader();
+    std::wcout << L"  " << title << L" is not implemented yet.\n";
+    waitForEnter();
+}
+
+void printMainMenu() {
+    std::wcout
+        << L"  MAIN MENU\n\n"
+        << L"  1. Run initial setup\n"
+        << L"  2. Windows Update\n"
+        << L"  3. Tools\n"
+        << L"  4. Extras\n"
+        << L"  5. BitLocker\n"
+        << L"  0. Exit\n\n"
+        << L"Select an option: ";
+}
+
+}  // namespace
+
+int wmain() {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleTitleW(L"Ersteinrichtung");
+
+    if (!isRunningAsAdministrator()) {
+        std::wcerr << L"Please run this application as administrator.\n";
+        return 1;
+    }
+
+    while (true) {
+        clearConsole();
+        printHeader();
+        printMainMenu();
+
+        std::wstring choice;
+        if (!std::getline(std::wcin, choice)) {
+            return 0;
+        }
+
+        if (choice == L"0" || choice == L"q" || choice == L"Q") {
+            return 0;
+        }
+
+        if (choice == L"1") {
+            showPlaceholder(L"Initial setup");
+        } else if (choice == L"2") {
+            showPlaceholder(L"Windows Update");
+        } else if (choice == L"3") {
+            showPlaceholder(L"Tools");
+        } else if (choice == L"4") {
+            showPlaceholder(L"Extras");
+        } else if (choice == L"5") {
+            bitlocker::showMenu();
+        }
+    }
+}

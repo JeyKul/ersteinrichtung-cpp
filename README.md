@@ -1,10 +1,35 @@
 # Ersteinrichtung C++
-Windows C++20 console prototype, built as a single elevated executable. The BitLocker submenu under main-menu option 5 calls the Windows `manage-bde.exe` utility (no PowerShell files shipped). Other menus remain placeholders.
+
+A native Windows C++20 console application for a setup workflow. It must be run elevated. The current implemented module is the BitLocker menu, which calls Windows `manage-bde.exe` directly; it does not ship or invoke PowerShell scripts.
 
 ## Build
-`cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -T host=x64`
-`cmake --build build --config Release`
-Run `build\Release\Ersteinrichtung.exe`.
 
-## BitLocker test
-Use a disposable VM and save recovery keys **outside** the VM. The menu offers overview, fixed-drive selection, encrypt/decrypt, pause/resume, data-drive auto-unlock, recovery-protector export, recovery-password addition, upgrade and wipe-free-space. Commands changing state require exact drive-specific typed confirmations. Output containing recovery passwords is hidden; export uses a user-specified absolute path. Exported key files are sensitive plaintext: protect them and verify contents before reboot. No TPM protector is created automatically; BitLocker policy/TPM can cause enablement to fail. This prototype is not yet CI-built or Windows-tested.
+Open an x64 Native Tools Command Prompt for Visual Studio, then run:
+
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+```
+
+Run `build\Release\Ersteinrichtung.exe` as administrator.
+
+## Implemented menu
+
+Main-menu option 5 opens the BitLocker module:
+
+- View status
+- Select a fixed drive
+- Encrypt or decrypt
+- Pause or resume encryption
+- Enable or disable auto-unlock on data drives
+- Export recovery-protector information to an absolute file path
+- Add a recovery password
+- Upgrade metadata or wipe free space
+
+Every state-changing command requires an exact typed confirmation that includes the selected drive. Recovery information is sensitive. Test only in a disposable VM and store exported recovery files outside the VM or encrypted target volume.
+
+## Notes
+
+- BitLocker availability depends on the Windows edition, disk layout, TPM state, and local policy.
+- Encryption can take a long time and must not be interrupted.
+- This application does not automatically create a TPM protector.
