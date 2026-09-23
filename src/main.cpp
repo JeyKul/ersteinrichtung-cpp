@@ -3,6 +3,8 @@
 #include <lmcons.h>
 
 #include <array>
+#include <cstdlib>
+#include <cwctype>
 #include <iomanip>
 #include <iostream>
 #include <limits>
