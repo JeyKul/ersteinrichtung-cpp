@@ -25,7 +25,7 @@ std::wstring buildCommandLine(
     return commandLine;
 }
 
-std::wstring readPipe(HANDLE pipe) {
+std::wstring readAllFromPipe(HANDLE pipe) {
     std::string bytes;
     char buffer[4096];
     DWORD bytesRead = 0;
@@ -109,7 +109,7 @@ ProcessResult runProcess(
         return {error, {}, L"CreateProcessW failed."};
     }
 
-    const std::wstring output = readPipe(readPipe);
+    const std::wstring output = readAllFromPipe(readPipe);
     CloseHandle(readPipe);
 
     WaitForSingleObject(processInfo.hProcess, INFINITE);

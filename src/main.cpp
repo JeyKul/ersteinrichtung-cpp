@@ -4,6 +4,7 @@
 #include <string>
 
 #include "bitlocker/bitlocker_menu.hpp"
+#include "extra/extra_menu.hpp"
 
 namespace {
 
@@ -125,7 +126,7 @@ int wmain() {
         } else if (choice == L"3") {
             showPlaceholder(L"Tools");
         } else if (choice == L"4") {
-            showPlaceholder(L"Extras");
+            extra::showMenu();
         } else if (choice == L"5") {
             bitlocker::showMenu();
         }
