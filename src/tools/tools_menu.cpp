@@ -71,53 +71,44 @@ std::wstring getExeDirectory() {
     return exe.substr(0, exe.find_last_of(L"\\/") + 1);
 }
 
-// Write a wide-string PowerShell command to a temp .ps1 file and return the
-// path.  The caller is responsible for deleting it.
-static std::wstring writeTempPsScript(const std::wstring& command) {
+// Write a PowerShell command to a temp .ps1 file, run it via
+// cmd.exe/powershell, and pipe the output.  Used only by
+// checkWindowsUpdates at this point.
+static void runPsCommand(const std::wstring& command) {
+    // Write command to temp file.
     wchar_t tempDir[MAX_PATH]{};
     const DWORD tempLen = GetTempPathW(MAX_PATH, tempDir);
-    if (tempLen == 0 || tempLen >= MAX_PATH) return {};
-    const std::wstring path = std::wstring(tempDir) + L"__ersteinrichtung_.ps1";
-    std::ofstream pf(path);
-    if (!pf) return {};
-    // Convert command to UTF-8 for file writing
-    const int utf8Len = WideCharToMultiByte(CP_UTF8, 0, command.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (tempLen == 0 || tempLen >= MAX_PATH) return;
+    const std::wstring psScript =
+        std::wstring(tempDir) + L"__ersteinrichtung_.ps1";
+    std::ofstream pf(psScript);
+    if (!pf) return;
+
+    // Encode command as UTF-8 for file writing.
+    const int utf8Len =
+        WideCharToMultiByte(CP_UTF8, 0, command.c_str(), -1, nullptr, 0, nullptr, nullptr);
     std::string utf8(utf8Len, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, command.c_str(), -1, utf8.data(), utf8Len, nullptr, nullptr);
+    WideCharToMultiByte(CP_UTF8, 0, command.c_str(), -1,
+                        utf8.data(), utf8Len, nullptr, nullptr);
     pf << utf8;
     pf.close();
-    return path;
-}
 
-// Run a PowerShell command via cmd.exe, capture & display output.
-static void runPsCommand(const std::wstring& command) {
-    const std::wstring psScript = writeTempPsScript(command);
-    if (psScript.empty()) {
-        std::wcout << L"Could not create temporary script.\n";
-        return;
-    }
+    // Run via cmd.exe /c powershell -File ...
     std::wstring runCmd = L"cmd.exe /c powershell -ExecutionPolicy Bypass -File \"" + psScript + L"\"";
-    // Convert to UTF-8 for the file write
-    const int utf8Len = WideCharToMultiByte(CP_UTF8, 0, runCmd.c_str(), -1, nullptr, 0, nullptr, nullptr);
-    std::string utf8(utf8Len, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, runCmd.c_str(), -1, utf8.data(), utf8Len, nullptr, nullptr);
 
     SECURITY_ATTRIBUTES sa{};
     sa.nLength = sizeof(sa);
     sa.bInheritHandle = TRUE;
     HANDLE rPipe = nullptr, wPipe = nullptr;
-    if (!CreatePipe(&rPipe, &wPipe, &sa, 0)) {
-        std::wcout << L"Pipe creation failed.\n";
-        return;
-    }
+    if (!CreatePipe(&rPipe, &wPipe, &sa, 0)) return;
     SetHandleInformation(rPipe, HANDLE_FLAG_INHERIT, 0);
 
     STARTUPINFOW si{};
     si.cb = sizeof(si);
     si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdInput  = GetStdHandle(STD_INPUT_HANDLE);
     si.hStdOutput = wPipe;
-    si.hStdError = wPipe;
+    si.hStdError  = wPipe;
 
     PROCESS_INFORMATION pi{};
     std::vector<wchar_t> mutableCmd(runCmd.begin(), runCmd.end());
@@ -127,15 +118,17 @@ static void runPsCommand(const std::wstring& command) {
                         CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
         CloseHandle(rPipe);
         CloseHandle(wPipe);
-        std::wcout << L"CreateProcessW failed.\n";
         return;
     }
     CloseHandle(wPipe);
     WaitForSingleObject(pi.hProcess, INFINITE);
+
+    // Read captured output.
     DWORD exitCode = 1;
     GetExitCodeProcess(pi.hProcess, &exitCode);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
 
-    // Read output
     std::string bytes;
     char buf[4096];
     DWORD bytesRead = 0;
@@ -143,14 +136,17 @@ static void runPsCommand(const std::wstring& command) {
         bytes.append(buf, bytesRead);
     }
     CloseHandle(rPipe);
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
+
+    // Delete temp script.
+    std::error_code ec;
+    std::filesystem::remove(psScript, ec);
 
     if (!bytes.empty()) {
-        const int wcLen = MultiByteToWideChar(CP_OEMCP, 0, bytes.data(), static_cast<int>(bytes.size()), nullptr, 0);
+        const int wcLen = MultiByteToWideChar(CP_OEMCP, 0,
+            bytes.data(), static_cast<int>(bytes.size()), nullptr, 0);
         std::wstring output(static_cast<std::size_t>(wcLen), L' ');
         MultiByteToWideChar(CP_OEMCP, 0, bytes.data(), static_cast<int>(bytes.size()),
-                           output.data(), wcLen);
+                            output.data(), wcLen);
         std::wcout << L"\n" << output;
     }
     std::wcout << L"\nExit code: " << exitCode << L"\n";
@@ -494,8 +490,22 @@ void disableTelemetry() {
     else                                  std::wcout << L"  WerSvc: could not disable\n";
 
     std::wcout << L"\nDisabling Defender auto sample submission ...\n";
-    runAndReport(getSystemDirectoryExecutable(L"powershell.exe"),
-        {L"-Command", L"Set-MpPreference -SubmitSamplesConsent 2 -ErrorAction SilentlyContinue"});
+    {
+        HKEY key = nullptr;
+        if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+                            L"SOFTWARE\\Policies\\Microsoft\\Windows Defender\\Submission",
+                            0, nullptr, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE,
+                            nullptr, &key, nullptr) == ERROR_SUCCESS &&
+            key != nullptr) {
+            const DWORD value = 2;
+            RegSetValueExW(key, L"SubmitSamplesConsent", 0, REG_DWORD,
+                           reinterpret_cast<const BYTE*>(&value), sizeof(value));
+            RegCloseKey(key);
+            std::wcout << L"  Defender submission disabled (registry).\n";
+        } else {
+            std::wcout << L"  Could not set Defender submission policy.\n";
+        }
+    }
 
     std::wcout << L"\nSetting SvcHostSplitThresholdInKB ...\n";
     auto totalPhys = core::queryWmiUintProperty(L"Win32_ComputerSystem", L"TotalPhysicalMemory");
