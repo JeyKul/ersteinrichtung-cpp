@@ -202,7 +202,7 @@ void enableDowngradePath() {
     waitForEnter();
 }
 
-// --- Drivers -----------------------------------------------------------------
+// --- Driver helpers (internal) -----------------------------------------------
 
 std::wstring cleanModelName(const std::wstring& model) {
     std::wstring cleaned;
@@ -254,6 +254,10 @@ std::wstring promptForDriverPath(const std::wstring& suffix) {
 
     return std::wstring(1, letter) + L":\\" + suffix;
 }
+
+}  // namespace
+
+// --- Drivers (public - callable from tools menu) -----------------------------
 
 void extractDrivers() {
     const std::wstring model = getDriverModel();
@@ -310,6 +314,8 @@ void installDrivers() {
     waitForEnter();
 }
 
+// --- Extras menu ------------------------------------------------------------
+
 void printMenu() {
     std::wcout
         << L"\n=============================================\n"
@@ -323,7 +329,9 @@ void printMenu() {
         << L"  0.  Back\n\n";
 }
 
-}  // namespace
+}  // namespace extra
+
+namespace extra {
 
 void showMenu() {
     while (true) {

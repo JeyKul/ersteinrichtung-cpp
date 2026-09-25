@@ -13,6 +13,7 @@ add_executable(Ersteinrichtung
     src/bitlocker/bitlocker_menu.cpp
     src/bitlocker/tpm.cpp
     src/extra/extra_menu.cpp
+    src/tools/tools_menu.cpp
     resources/app.rc
 )
 
