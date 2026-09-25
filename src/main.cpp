@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "bitlocker/bitlocker_menu.hpp"
 #include "extra/extra_menu.hpp"

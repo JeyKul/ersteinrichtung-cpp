@@ -1,11 +1,14 @@
 #include "tools_menu.hpp"
 
+#include "../core/http_download.hpp"
 #include "../core/process_runner.hpp"
 #include "../core/wmi.hpp"
 #include "../extra/extra_menu.hpp"
 #include "../bitlocker/bitlocker_menu.hpp"
 
 #include <windows.h>
+#include <objbase.h>
+#include <shlobj.h>
 
 #include <cwctype>
 #include <filesystem>
@@ -153,7 +156,7 @@ static void runPsCommand(const std::wstring& command) {
     std::wcout << L"\nExit code: " << exitCode << L"\n";
 }
 
-// Create a .lnk shortcut via PowerShell.
+// Create a .lnk shortcut via native IShellLink COM interface.
 static void createShortcut(
     const std::wstring& shortcutPath,
     const std::wstring& targetPath,
@@ -162,17 +165,39 @@ static void createShortcut(
     const std::wstring& iconLocation) {
     if (std::filesystem::exists(shortcutPath)) return;
 
-    const std::wstring cmd =
-        L"$WshShell = New-Object -ComObject WScript.Shell; "
-        L"$Shortcut = $WshShell.CreateShortcut('" + shortcutPath + "'); "
-        L"$Shortcut.TargetPath = '" + targetPath + "'; "
-        L"$Shortcut.WorkingDirectory = '" + workingDir + "'; "
-        L"$Shortcut.WindowStyle = 1; "
-        L"$Shortcut.Description = '" + description + "'; "
-        L"$Shortcut.IconLocation = '" + iconLocation + "'; "
-        L"$Shortcut.Save();";
+    const HRESULT initResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const bool shouldUninitialize =
+        initResult == S_OK || initResult == RPC_E_CHANGED_MODE;
 
-    runPsCommand(cmd);
+    IShellLinkW* psl = nullptr;
+    const HRESULT created = CoCreateInstance(
+        CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
+        IID_IShellLinkW, reinterpret_cast<void**>(&psl));
+
+    if (created == S_OK && psl != nullptr) {
+        psl->SetPath(targetPath.c_str());
+        psl->SetWorkingDirectory(workingDir.c_str());
+        psl->SetDescription(description.c_str());
+        psl->SetIconLocation(iconLocation.c_str(), 0);
+
+        // Query IPersistFile to save the shortcut.
+        IPersistFile* ppf = nullptr;
+        if (psl->QueryInterface(IID_IPersistFile,
+                                reinterpret_cast<void**>(&ppf)) == S_OK) {
+            const HRESULT saved = ppf->Save(
+                shortcutPath.c_str(), TRUE);
+            if (saved != S_OK) {
+                std::wcout << L"Failed to save shortcut: 0x"
+                           << std::hex << saved << L"\n";
+            }
+            ppf->Release();
+        }
+        psl->Release();
+    }
+
+    if (shouldUninitialize) {
+        CoUninitialize();
+    }
 }
 
 }  // namespace
@@ -243,13 +268,46 @@ void installChocolatey() {
         waitForEnter();
         return;
     }
-    std::wcout << L"Chocolatey not found. Installing from official script...\n";
-    const std::wstring psCmd =
-        L"Set-ExecutionPolicy Bypass -Scope Process -Force; "
-        L"[System.Net.ServicePointManager]::SecurityProtocol = "
-        L"[System.Net.ServicePointManager]::SecurityProtocol -bor 3072; "
-        L"Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))";
-    runPsCommand(psCmd);
+    std::wcout << L"Chocolatey not found. Downloading installer ...\n";
+
+    // Download the official install.ps1 script to a temp file, then run it.
+    wchar_t tempPath[MAX_PATH]{};
+    const DWORD tempLen = GetTempPathW(MAX_PATH, tempPath);
+    if (tempLen == 0 || tempLen >= MAX_PATH) {
+        std::wcout << L"Could not get temp path.\n";
+        waitForEnter();
+        return;
+    }
+    const std::wstring psScriptPath = std::wstring(tempPath) + L"choco_install.ps1";
+
+    const core::DownloadResult dlResult =
+        core::downloadFile(
+            L"https://community.chocolatey.org/install.ps1", psScriptPath);
+    if (!dlResult.success) {
+        std::wcout << L"Download failed: " << dlResult.error << L"\n";
+        waitForEnter();
+        return;
+    }
+
+    // Run the script via PowerShell (required for MSI install logic).
+    std::wcout << L"Running Chocolatey installer ...\n";
+    std::wstring runCmd =
+        L"powershell.exe -ExecutionPolicy Bypass -File \"" + psScriptPath + L"\"";
+    core::ProcessResult result =
+        core::runProcess(getSystemDirectoryExecutable(L"cmd.exe"),
+                         {L"/c", runCmd});
+    if (!result.error.empty()) {
+        std::wcout << L"Error: " << result.error << L"\n";
+    }
+    if (!result.output.empty()) {
+        std::wcout << L"\n" << result.output;
+    }
+    std::wcout << L"\nExit code: " << result.exitCode << L"\n";
+
+    // Clean up temp script.
+    std::error_code ec;
+    std::filesystem::remove(psScriptPath, ec);
+
     waitForEnter();
 }
 
@@ -271,11 +329,13 @@ void installSupremoPK() {
         std::wcout << L"Supremo copied from local EXE folder.\n";
     } else {
         std::wcout << L"Downloading Supremo from ct-t.de ...\n";
-        const std::wstring dlCmd =
-            L"$ProgressPreference = 'SilentlyContinue'; "
-            L"Invoke-WebRequest -Uri 'https://www.ct-t.de/prog/Supremo.exe' "
-            L"-OutFile '" + targetExe + L"'";
-        runPsCommand(dlCmd);
+        const core::DownloadResult dlResult =
+            core::downloadFile(L"https://www.ct-t.de/prog/Supremo.exe", targetExe);
+        if (!dlResult.success) {
+            std::wcout << L"Download failed: " << dlResult.error << L"\n";
+            waitForEnter();
+            return;
+        }
     }
     if (!std::filesystem::exists(targetExe)) {
         std::wcout << L"Supremo installation failed.\n";
@@ -292,7 +352,7 @@ void installSupremoPK() {
     waitForEnter();
 }
 
-static void installTeamViewerGK() {
+void installTeamViewerGK() {
     std::wcout << L"\n=== Install TeamViewer GK + Supremo ===\n";
     const std::wstring targetDir = L"C:\\CT-T";
     std::error_code ec;
@@ -318,7 +378,7 @@ static void installTeamViewerGK() {
     waitForEnter();
 }
 
-static void installDefaultPrograms() {
+void installDefaultPrograms() {
     std::wcout << L"\n=== Install Default Programs ===\n";
     if (!chocoInstalled()) {
         std::wcout << L"Chocolatey is not installed. Installing it first...\n";
@@ -356,7 +416,7 @@ static void installDefaultPrograms() {
     waitForEnter();
 }
 
-static void checkWindowsUpdates() {
+void checkWindowsUpdates() {
     std::wcout << L"\n=== Windows Update Check ===\n";
     const std::wstring psCmd =
         L"$session = New-Object -ComObject Microsoft.Update.Session; "
@@ -374,7 +434,7 @@ static void checkWindowsUpdates() {
     waitForEnter();
 }
 
-static void disableTelemetry() {
+void disableTelemetry() {
     std::wcout << L"\n=== Disable Telemetry & Privacy Tweaks ===\n";
     std::wcout << L"This will apply registry tweaks and disable telemetry services.\n";
 
@@ -503,11 +563,15 @@ static void checkWhyNotWin11() {
     if (!std::filesystem::exists(whyExe)) {
         std::wcout << L"WhyNotWin11.exe not found in EXE/ folder.\n";
         std::wcout << L"Downloading from GitHub ...\n";
-        const std::wstring dlCmd =
-            L"$ProgressPreference = 'SilentlyContinue'; "
-            L"Invoke-WebRequest -Uri 'https://github.com/rcmaehl/WhyNotWin11/releases/download/2.7.0/WhyNotWin11.exe' "
-            L"-OutFile '" + whyExe + L"'";
-        runPsCommand(dlCmd);
+        const core::DownloadResult dlResult =
+            core::downloadFile(
+                L"https://github.com/rcmaehl/WhyNotWin11/releases/download/2.7.0/WhyNotWin11.exe",
+                whyExe);
+        if (!dlResult.success) {
+            std::wcout << L"Download failed: " << dlResult.error << L"\n";
+            waitForEnter();
+            return;
+        }
     }
     if (!std::filesystem::exists(whyExe)) {
         std::wcout << L"Download failed.\n";
@@ -573,7 +637,7 @@ static void checkWhyNotWin11() {
     waitForEnter();
 }
 
-static void disableFastBoot() {
+void disableFastBoot() {
     std::wcout << L"\n=== Disable Fast Boot & Standby ===\n";
     runAndReport(getSystemDirectoryExecutable(L"powercfg.exe"), {L"/h", L"off"});
     runAndReport(getSystemDirectoryExecutable(L"powercfg.exe"), {L"-change", L"-standby-timeout-ac", L"0"});
@@ -586,7 +650,7 @@ static void disableFastBoot() {
     waitForEnter();
 }
 
-static void revertFastBoot() {
+void revertFastBoot() {
     std::wcout << L"\n=== Revert Fast Boot & Standby ===\n";
     runAndReport(getSystemDirectoryExecutable(L"powercfg.exe"), {L"/h", L"on"});
     runAndReport(getSystemDirectoryExecutable(L"powercfg.exe"), {L"-change", L"-standby-timeout-ac", L"30"});

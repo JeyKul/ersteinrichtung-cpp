@@ -10,6 +10,7 @@ add_executable(Ersteinrichtung
     src/main.cpp
     src/core/process_runner.cpp
     src/core/wmi.cpp
+    src/core/http_download.cpp
     src/bitlocker/bitlocker_menu.cpp
     src/bitlocker/tpm.cpp
     src/extra/extra_menu.cpp
@@ -24,7 +25,7 @@ target_compile_definitions(Ersteinrichtung PRIVATE
     NOMINMAX
 )
 
-target_link_libraries(Ersteinrichtung PRIVATE advapi32 ole32 oleaut32 shell32 wbemuuid)
+target_link_libraries(Ersteinrichtung PRIVATE advapi32 ole32 oleaut32 shell32 winhttp wbemuuid)
 
 if(MSVC)
     target_compile_options(Ersteinrichtung PRIVATE /W4 /permissive-)
