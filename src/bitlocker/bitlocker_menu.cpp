@@ -52,8 +52,9 @@ void mutate(const std::wstring& action,const std::vector<std::wstring>& args,cor
 }
 void showMenu(core::Logger& log){
     for(;;){
-        core::console::clear();core::console::line(L"BITLOCKER | Selected drive: "+selectedDrive,core::console::accent);
-        core::console::line(L"  1. Overview\n  2. Select fixed drive\n  3. Encrypt (used space + recovery password)\n  4. Decrypt\n  5. Pause encryption\n  6. Resume encryption\n  7. Enable auto-unlock\n  8. Disable auto-unlock\n  9. Export recovery protectors\n 10. Add recovery password\n 11. Upgrade metadata\n 12. Wipe free space\n  0. Back");
+        core::console::clear();core::console::separator(L"BITLOCKER | Laufwerk: "+selectedDrive);
+        core::console::line(L"1.  Übersicht\n2.  Festes Laufwerk auswählen\n3.  Verschlüsseln (belegter Speicher + Wiederherstellungspasswort)\n4.  Entschlüsseln\n5.  Verschlüsselung pausieren\n6.  Verschlüsselung fortsetzen\n7.  Automatische Entsperrung aktivieren\n8.  Automatische Entsperrung deaktivieren\n9.  Wiederherstellungsschutz exportieren\n10. Wiederherstellungspasswort hinzufügen\n11. Metadaten aktualisieren\n12. Freien Speicher bereinigen");
+        core::console::separator(); core::console::line(L"0.  Zurück",core::console::highlight); core::console::line();
         const auto c=core::console::prompt(L"Select: ");if(c==L"0")return;
         if(c==L"1")manage({L"-status"},log);else if(c==L"2")selectDrive();
         else if(c==L"3")mutate(L"ENCRYPT",{L"-on",selectedDrive,L"-recoverypassword",L"-usedspaceonly"},log,true);
