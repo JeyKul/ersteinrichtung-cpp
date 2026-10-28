@@ -9,6 +9,7 @@ add_executable(Ersteinrichtung
     src/app/menus.cpp
     src/core/console.cpp
     src/core/download.cpp
+    src/core/i18n.cpp
     src/core/logger.cpp
     src/core/process_runner.cpp
     src/core/system.cpp
@@ -16,7 +17,7 @@ add_executable(Ersteinrichtung
     resources/app.rc
 )
 target_compile_definitions(Ersteinrichtung PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-target_link_libraries(Ersteinrichtung PRIVATE advapi32 shell32 winhttp wintrust crypt32)
+target_link_libraries(Ersteinrichtung PRIVATE advapi32 shell32 winhttp wininet wintrust crypt32 user32)
 if(MINGW)
     target_link_options(Ersteinrichtung PRIVATE -municode)
 endif()
@@ -27,7 +28,8 @@ else()
 endif()
 add_custom_command(TARGET Ersteinrichtung POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Ersteinrichtung>/assets"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/assets/unattend.xml" "$<TARGET_FILE_DIR:Ersteinrichtung>/assets/unattend.xml")
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/assets/unattend.xml" "$<TARGET_FILE_DIR:Ersteinrichtung>/assets/unattend.xml"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/lang" "$<TARGET_FILE_DIR:Ersteinrichtung>/lang")
 if(EXISTS "${CMAKE_SOURCE_DIR}/assets/TeamViewer_Host_Setup.exe")
     add_custom_command(TARGET Ersteinrichtung POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/assets/TeamViewer_Host_Setup.exe" "$<TARGET_FILE_DIR:Ersteinrichtung>/assets/TeamViewer_Host_Setup.exe")

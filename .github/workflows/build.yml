@@ -7,6 +7,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate language files
+        shell: pwsh
+        run: ./.github/scripts/check-lang.ps1
+
       - name: Configure
         run: cmake -S . -B build -A x64
       - name: Build
@@ -17,3 +21,4 @@ jobs:
           path: |
             build/Release/Ersteinrichtung.exe
             build/Release/assets/unattend.xml
+            build/Release/lang/*.lang

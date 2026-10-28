@@ -22,6 +22,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Validate language files
+        shell: pwsh
+        run: ./.github/scripts/check-lang.ps1
+
       - name: Configure CMake
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
@@ -49,6 +53,10 @@ jobs:
           if (Test-Path $assets) {
             Copy-Item $assets 'dist\assets' -Recurse
           }
+
+          $lang = Join-Path $PWD 'build\Release\lang'
+          if (-not (Test-Path $lang)) { throw 'Language files were not packaged.' }
+          Copy-Item $lang 'dist\lang' -Recurse
 
           if (Test-Path 'README.md') {
             Copy-Item 'README.md' 'dist\README.md'
