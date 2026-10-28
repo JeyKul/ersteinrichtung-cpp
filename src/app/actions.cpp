@@ -33,7 +33,7 @@ bool setDword(HKEY root, const wchar_t* path, const wchar_t* name, DWORD value) 
 bool setString(HKEY root, const wchar_t* path, const wchar_t* name, const wchar_t* value) {
     HKEY key{}; if (RegCreateKeyExW(root, path, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr) != ERROR_SUCCESS) return false;
     const DWORD size = static_cast<DWORD>((wcslen(value) + 1) * sizeof(wchar_t));
-    const LONG result = RegSetValueExW(key, name, 0, REG_SZ, reinterpret_cast<const BYTE*>(&value), size);
+    const LONG result = RegSetValueExW(key, name, 0, REG_SZ, reinterpret_cast<const BYTE*>(value), size);
     RegCloseKey(key); return result == ERROR_SUCCESS;
 }
 std::wstring cleanModel(std::wstring model) {
