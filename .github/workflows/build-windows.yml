@@ -2,7 +2,9 @@ name: Build Windows x64
 
 on:
   push:
-  pull_request:
+    branches:
+      - main
+      - Ai_Test
   workflow_dispatch:
 
 permissions:
