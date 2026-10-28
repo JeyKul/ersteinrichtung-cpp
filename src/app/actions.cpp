@@ -1,3 +1,4 @@
+#include <cwctype>
 #include "actions.hpp"
 #include "../bitlocker/bitlocker_menu.hpp"
 #include "../core/console.hpp"
@@ -241,3 +242,4 @@ void Actions::showExtras() {
     }
 }
 }
+
