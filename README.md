@@ -1,35 +1,39 @@
 # Ersteinrichtung C++
 
-A native Windows C++20 console application for a setup workflow. It must be run elevated. The current implemented module is the BitLocker menu, which calls Windows `manage-bde.exe` directly; it does not ship or invoke PowerShell scripts.
+Native C++20 rewrite of the original PowerShell setup workflow for Windows 10/11.
+It uses Windows APIs and system executables directly for the normal workflow; PowerShell is retained only for the official Chocolatey bootstrap and Windows shortcut creation.
+
+## Implemented
+
+- Main menu and all four private/business batch variants
+- Computer rename, Chocolatey, default programs, Supremo, optional bundled TeamViewer
+- Windows Update trigger, system/security status, privacy registry/service changes
+- Tools: WinDirStat, Advanced IP Scanner, Lenovo tools, system info, PowerShell 7, TEMP cleanup
+- Extras: Store/App Installer links, LTSC-to-Pro registry path, driver export/import
+- Sysprep/OOBE with bundled unattend file
+- Full BitLocker management with typed confirmations and protected recovery export
+- Per-session logs under `%ProgramData%\Ersteinrichtung\Logs\<PC>`
+- Administrator manifest and GitHub Actions x64 build
 
 ## Build
 
-Open an x64 Native Tools Command Prompt for Visual Studio, then run:
-
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
+```bat
+cmake -S . -B build -A x64
+cmake --build build --config Release --parallel
 ```
 
-Run `build\Release\Ersteinrichtung.exe` as administrator.
+Run `build\Release\Ersteinrichtung.exe`. The manifest requests elevation automatically.
 
-## Implemented menu
+## Optional business installer
 
-Main-menu option 5 opens the BitLocker module:
+The old repository did not contain `TeamViewer_Host_Setup.exe`. To enable that part, place a trusted installer at:
 
-- View status
-- Select a fixed drive
-- Encrypt or decrypt
-- Pause or resume encryption
-- Enable or disable auto-unlock on data drives
-- Export recovery-protector information to an absolute file path
-- Add a recovery password
-- Upgrade metadata or wipe free space
+```text
+assets\TeamViewer_Host_Setup.exe
+```
 
-Every state-changing command requires an exact typed confirmation that includes the selected drive. Recovery information is sensitive. Test only in a disposable VM and store exported recovery files outside the VM or encrypted target volume.
+The program otherwise installs Supremo and reports that TeamViewer was skipped.
 
-## Notes
+## Safety
 
-- BitLocker availability depends on the Windows edition, disk layout, TPM state, and local policy.
-- Encryption can take a long time and must not be interrupted.
-- This application does not automatically create a TPM protector.
+Test destructive/system-changing actions in a disposable Windows VM first. BitLocker recovery output is deliberately hidden and may only be exported to a different volume. Downloads use HTTPS and downloaded executables/MSIs are checked for an Authenticode signature before launch.

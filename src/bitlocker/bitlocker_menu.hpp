@@ -1,7 +1,3 @@
 #pragma once
-
-namespace bitlocker {
-
-void showMenu();
-
-}  // namespace bitlocker
+namespace core { class Logger; }
+namespace bitlocker { void showMenu(core::Logger& logger); }
