@@ -4,10 +4,30 @@
 #include <iostream>
 
 namespace core::console {
+namespace {
+void setConsoleSize(short requestedWidth = 140, short requestedHeight = 45) {
+    const HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    const COORD largest = GetLargestConsoleWindowSize(out);
+    if (largest.X <= 0 || largest.Y <= 0) return;
+    const short width = (std::min)(requestedWidth, largest.X);
+    const short height = (std::min)(requestedHeight, largest.Y);
+    CONSOLE_SCREEN_BUFFER_INFO info{};
+    if (!GetConsoleScreenBufferInfo(out, &info)) return;
+    COORD buffer{(std::max)(info.dwSize.X, width), (std::max)(info.dwSize.Y, height)};
+    SetConsoleScreenBufferSize(out, buffer);
+    SMALL_RECT window{0, 0, static_cast<short>(width - 1), static_cast<short>(height - 1)};
+    SetConsoleWindowInfo(out, TRUE, &window);
+}
+}
 void initialize() {
     SetConsoleCP(CP_UTF8);
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleTitleW(L"Ersteinrichtung");
+    const HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD mode{};
+    if (GetConsoleMode(out, &mode)) SetConsoleMode(out, mode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    setConsoleSize();
+    color(normal);
 }
 void color(WORD value) { SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), value); }
 void clear() {
@@ -18,15 +38,22 @@ void clear() {
     DWORD written{};
     const COORD origin{};
     FillConsoleOutputCharacterW(out, L' ', cells, origin, &written);
-    FillConsoleOutputAttribute(out, info.wAttributes, cells, origin, &written);
+    FillConsoleOutputAttribute(out, normal, cells, origin, &written);
     SetConsoleCursorPosition(out, origin);
 }
 void write(const std::wstring& text, WORD value) {
     color(value); std::wcout << text; color(normal);
 }
 void line(const std::wstring& text, WORD value) { write(text + L"\n", value); }
+void separator(const std::wstring& label, WORD value, int width) {
+    if (label.empty()) { line(std::wstring(static_cast<std::size_t>(width), L'-'), value); return; }
+    const int remaining = (std::max)(0, width - static_cast<int>(label.size()));
+    const int left = remaining / 2;
+    const int right = remaining - left;
+    line(std::wstring(static_cast<std::size_t>(left), L'-') + label + std::wstring(static_cast<std::size_t>(right), L'-'), value);
+}
 std::wstring prompt(const std::wstring& label) {
-    write(label, accent);
+    write(label, highlight);
     std::wstring value;
     std::getline(std::wcin, value);
     while (!value.empty() && std::iswspace(value.back())) value.pop_back();
