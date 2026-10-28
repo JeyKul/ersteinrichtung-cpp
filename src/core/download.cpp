@@ -5,68 +5,8 @@
 #include <softpub.h>
 #include <fstream>
 #include <vector>
-
-namespace core {
-namespace {
-struct Handle { HINTERNET value{}; ~Handle(){ if(value) WinHttpCloseHandle(value); } };
-}
-DownloadResult downloadFile(const std::wstring& url, const std::filesystem::path& destination) {
-    URL_COMPONENTS parts{}; parts.dwStructSize = sizeof(parts);
-    wchar_t host[256]{}, path[4096]{};
-    parts.lpszHostName = host; parts.dwHostNameLength = static_cast<DWORD>(std::size(host));
-    parts.lpszUrlPath = path; parts.dwUrlPathLength = static_cast<DWORD>(std::size(path));
-    if (!WinHttpCrackUrl(url.c_str(), 0, 0, &parts)) return {false, 0, L"Invalid URL"};
-    Handle session{WinHttpOpen(L"Ersteinrichtung/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, nullptr, nullptr, 0)};
-    if (!session.value) return {false, 0, L"WinHttpOpen failed"};
-    WinHttpSetTimeouts(session.value, 10000, 10000, 30000, 30000);
-    Handle connection{WinHttpConnect(session.value, std::wstring(host, parts.dwHostNameLength).c_str(), parts.nPort, 0)};
-    if (!connection.value) return {false, 0, L"Connection failed"};
-    const DWORD flags = parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0;
-    Handle request{WinHttpOpenRequest(connection.value, L"GET", std::wstring(path, parts.dwUrlPathLength).c_str(), nullptr,
-                                      WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags)};
-    if (!request.value || !WinHttpSendRequest(request.value, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-        WINHTTP_NO_REQUEST_DATA, 0, 0, 0) || !WinHttpReceiveResponse(request.value, nullptr))
-        return {false, 0, L"HTTP request failed: " + std::to_wstring(GetLastError())};
-    DWORD status{}, size = sizeof(status);
-    WinHttpQueryHeaders(request.value, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                        WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX);
-    if (status < 200 || status >= 300) return {false, status, L"HTTP status " + std::to_wstring(status)};
-    const std::filesystem::path temporary = destination.wstring() + L".part";
-    std::error_code ec; std::filesystem::create_directories(destination.parent_path(), ec);
-    std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-    if (!output) return {false, status, L"Cannot create destination file"};
-    std::vector<char> buffer(64 * 1024); DWORD read{};
-    do {
-        if (!WinHttpReadData(request.value, buffer.data(), static_cast<DWORD>(buffer.size()), &read)) {
-            output.close(); std::filesystem::remove(temporary, ec); return {false, status, L"Download read failed"};
-        }
-        output.write(buffer.data(), read);
-    } while (read);
-    output.close();
-    std::filesystem::remove(destination, ec);
-    std::filesystem::rename(temporary, destination, ec);
-    if (ec) return {false, status, L"Cannot finalize downloaded file"};
-    return {true, status, {}};
-}
-bool hasInternet() {
-    Handle session{WinHttpOpen(L"Ersteinrichtung/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, nullptr, nullptr, 0)};
-    if (!session.value) return false;
-    WinHttpSetTimeouts(session.value, 2500, 2500, 2500, 2500);
-    Handle connection{WinHttpConnect(session.value, L"www.msftconnecttest.com", INTERNET_DEFAULT_HTTPS_PORT, 0)};
-    if (!connection.value) return false;
-    Handle request{WinHttpOpenRequest(connection.value, L"HEAD", L"/connecttest.txt", nullptr, WINHTTP_NO_REFERER,
-                                      WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)};
-    return request.value && WinHttpSendRequest(request.value, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-        WINHTTP_NO_REQUEST_DATA, 0, 0, 0) && WinHttpReceiveResponse(request.value, nullptr);
-}
-bool hasTrustedSignature(const std::filesystem::path& file) {
-    WINTRUST_FILE_INFO info{}; info.cbStruct = sizeof(info); info.pcwszFilePath = file.c_str();
-    WINTRUST_DATA data{}; data.cbStruct = sizeof(data); data.dwUIChoice = WTD_UI_NONE;
-    data.fdwRevocationChecks = WTD_REVOKE_NONE; data.dwUnionChoice = WTD_CHOICE_FILE; data.pFile = &info;
-    data.dwStateAction = WTD_STATEACTION_VERIFY; data.dwProvFlags = WTD_CACHE_ONLY_URL_RETRIEVAL;
-    GUID policy = WINTRUST_ACTION_GENERIC_VERIFY_V2;
-    const LONG result = WinVerifyTrust(nullptr, &policy, &data);
-    data.dwStateAction = WTD_STATEACTION_CLOSE; WinVerifyTrust(nullptr, &policy, &data);
-    return result == ERROR_SUCCESS;
-}
+namespace core { namespace { struct Handle { HINTERNET value{}; ~Handle(){ if(value) WinHttpCloseHandle(value); } }; }
+DownloadResult downloadFile(const std::wstring& url, const std::filesystem::path& destination) { URL_COMPONENTS parts{}; parts.dwStructSize = sizeof(parts); wchar_t host[256]{}, path[4096]{}; parts.lpszHostName = host; parts.dwHostNameLength = static_cast<DWORD>(std::size(host)); parts.lpszUrlPath = path; parts.dwUrlPathLength = static_cast<DWORD>(std::size(path)); if (!WinHttpCrackUrl(url.c_str(), 0, 0, &parts)) return {false, 0, L"Invalid URL"}; Handle session{WinHttpOpen(L"Ersteinrichtung/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, nullptr, nullptr, 0)}; if (!session.value) return {false, 0, L"WinHttpOpen failed"}; WinHttpSetTimeouts(session.value, 10000, 10000, 30000, 30000); Handle connection{WinHttpConnect(session.value, std::wstring(host, parts.dwHostNameLength).c_str(), parts.nPort, 0)}; if (!connection.value) return {false, 0, L"Connection failed"}; const DWORD flags = parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0; Handle request{WinHttpOpenRequest(connection.value, L"GET", std::wstring(path, parts.dwUrlPathLength).c_str(), nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags)}; if (!request.value || !WinHttpSendRequest(request.value, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) || !WinHttpReceiveResponse(request.value, nullptr)) return {false, 0, L"HTTP request failed: " + std::to_wstring(GetLastError())}; DWORD status{}, size = sizeof(status); WinHttpQueryHeaders(request.value, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX); if (status < 200 || status >= 300) return {false, status, L"HTTP status " + std::to_wstring(status)}; const std::filesystem::path temporary = destination.wstring() + L".part"; std::error_code ec; std::filesystem::create_directories(destination.parent_path(), ec); std::ofstream output(temporary, std::ios::binary | std::ios::trunc); if (!output) return {false, status, L"Cannot create destination file"}; std::vector<char> buffer(64 * 1024); DWORD read{}; do { if (!WinHttpReadData(request.value, buffer.data(), static_cast<DWORD>(buffer.size()), &read)) { output.close(); std::filesystem::remove(temporary, ec); return {false, status, L"Download read failed"}; } output.write(buffer.data(), read); } while (read); output.close(); std::filesystem::remove(destination, ec); std::filesystem::rename(temporary, destination, ec); if (ec) return {false, status, L"Cannot finalize downloaded file"}; return {true, status, {}}; }
+bool hasInternet() { struct Probe { const wchar_t* host; INTERNET_PORT port; const wchar_t* path; DWORD flags; }; const Probe probes[]={{L"www.msftconnecttest.com",INTERNET_DEFAULT_HTTP_PORT,L"/connecttest.txt",0},{L"www.microsoft.com",INTERNET_DEFAULT_HTTPS_PORT,L"/",WINHTTP_FLAG_SECURE},{L"github.com",INTERNET_DEFAULT_HTTPS_PORT,L"/",WINHTTP_FLAG_SECURE}}; Handle session{WinHttpOpen(L"Ersteinrichtung/1.0",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,nullptr,nullptr,0)}; if(!session.value)return false; WinHttpSetTimeouts(session.value,4000,4000,5000,5000); for(const auto& probe:probes){Handle connection{WinHttpConnect(session.value,probe.host,probe.port,0)};if(!connection.value)continue;Handle request{WinHttpOpenRequest(connection.value,L"GET",probe.path,nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,probe.flags)};if(!request.value||!WinHttpSendRequest(request.value,WINHTTP_NO_ADDITIONAL_HEADERS,0,WINHTTP_NO_REQUEST_DATA,0,0,0)||!WinHttpReceiveResponse(request.value,nullptr))continue;DWORD status{},size=sizeof(status);if(WinHttpQueryHeaders(request.value,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,WINHTTP_HEADER_NAME_BY_INDEX,&status,&size,WINHTTP_NO_HEADER_INDEX)&&status>=200&&status<500)return true;}return false; }
+bool hasTrustedSignature(const std::filesystem::path& file) { WINTRUST_FILE_INFO info{}; info.cbStruct = sizeof(info); info.pcwszFilePath = file.c_str(); WINTRUST_DATA data{}; data.cbStruct = sizeof(data); data.dwUIChoice = WTD_UI_NONE; data.fdwRevocationChecks = WTD_REVOKE_NONE; data.dwUnionChoice = WTD_CHOICE_FILE; data.pFile = &info; data.dwStateAction = WTD_STATEACTION_VERIFY; data.dwProvFlags = WTD_CACHE_ONLY_URL_RETRIEVAL; GUID policy = WINTRUST_ACTION_GENERIC_VERIFY_V2; const LONG result = WinVerifyTrust(nullptr, &policy, &data); data.dwStateAction = WTD_STATEACTION_CLOSE; WinVerifyTrust(nullptr, &policy, &data); return result == ERROR_SUCCESS; }
 }
