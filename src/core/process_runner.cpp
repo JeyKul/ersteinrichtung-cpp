@@ -29,9 +29,9 @@ std::wstring makeCommand(const std::wstring& exe, const std::vector<std::wstring
 }
 std::wstring decode(const std::string& bytes) {
     if (bytes.empty()) return {};
-    int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, bytes.data(), static_cast<int>(bytes.size()), nullptr, 0);
-    UINT page = CP_UTF8;
-    if (!length) { page = CP_OEMCP; length = MultiByteToWideChar(page, 0, bytes.data(), static_cast<int>(bytes.size()), nullptr, 0); }
+    UINT page = GetOEMCP();
+    int length = MultiByteToWideChar(page, 0, bytes.data(), static_cast<int>(bytes.size()), nullptr, 0);
+    if (!length) { page = CP_UTF8; length = MultiByteToWideChar(page, 0, bytes.data(), static_cast<int>(bytes.size()), nullptr, 0); }
     std::wstring result(static_cast<std::size_t>(length), L'\0');
     if (length) MultiByteToWideChar(page, 0, bytes.data(), static_cast<int>(bytes.size()), result.data(), length);
     return result;
@@ -77,7 +77,9 @@ ProcessResult runProcess(const std::wstring& executable, const std::vector<std::
     std::string bytes;
     if (readPipe) {
         char buffer[8192]; DWORD count{};
-        while (ReadFile(readPipe, buffer, sizeof(buffer), &count, nullptr) && count) bytes.append(buffer, count);
+        std::string pending;
+        while (ReadFile(readPipe, buffer, sizeof(buffer), &count, nullptr) && count) { bytes.append(buffer, count); if (options.onOutput) { pending.append(buffer, count); std::size_t p{}; while ((p=pending.find('\n'))!=std::string::npos) { auto line=pending.substr(0,p); pending.erase(0,p+1); if(!line.empty()&&line.back()=='\r')line.pop_back(); options.onOutput(decode(line)); } } }
+        if(options.onOutput&&!pending.empty())options.onOutput(decode(pending));
         CloseHandle(readPipe);
     }
     WaitForSingleObject(process.hProcess, INFINITE);
