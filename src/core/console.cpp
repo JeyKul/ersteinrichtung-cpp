@@ -1,74 +1,12 @@
 #include "console.hpp"
+#include "i18n.hpp"
 #include <algorithm>
 #include <cwctype>
 #include <iostream>
-
-namespace core::console {
-namespace {
-void setConsoleSize(short requestedWidth = 140, short requestedHeight = 45) {
-    const HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    const COORD largest = GetLargestConsoleWindowSize(out);
-    if (largest.X <= 0 || largest.Y <= 0) return;
-    const short width = (std::min)(requestedWidth, largest.X);
-    const short height = (std::min)(requestedHeight, largest.Y);
-    CONSOLE_SCREEN_BUFFER_INFO info{};
-    if (!GetConsoleScreenBufferInfo(out, &info)) return;
-    COORD buffer{(std::max)(info.dwSize.X, width), (std::max)(info.dwSize.Y, height)};
-    SetConsoleScreenBufferSize(out, buffer);
-    SMALL_RECT window{0, 0, static_cast<short>(width - 1), static_cast<short>(height - 1)};
-    SetConsoleWindowInfo(out, TRUE, &window);
+#include <vector>
+namespace core::console { namespace {
+void resize(short rw=140,short rh=45){HANDLE h=GetStdHandle(STD_OUTPUT_HANDLE);COORD l=GetLargestConsoleWindowSize(h);if(l.X<=0||l.Y<=0)return;short w=(std::min)(rw,l.X),hh=(std::min)(rh,l.Y);CONSOLE_SCREEN_BUFFER_INFO i{};if(!GetConsoleScreenBufferInfo(h,&i))return;SMALL_RECT tiny{0,0,0,0};SetConsoleWindowInfo(h,TRUE,&tiny);COORD b{(std::max)(i.dwSize.X,w),(std::max)(i.dwSize.Y,hh)};SetConsoleScreenBufferSize(h,b);SMALL_RECT win{0,0,(short)(w-1),(short)(hh-1)};SetConsoleWindowInfo(h,TRUE,&win);}
+std::string utf8(const std::wstring& v){int n=WideCharToMultiByte(CP_UTF8,0,v.data(),(int)v.size(),nullptr,0,nullptr,nullptr);std::string r((size_t)n,'\0');if(n)WideCharToMultiByte(CP_UTF8,0,v.data(),(int)v.size(),r.data(),n,nullptr,nullptr);return r;}
 }
-}
-void initialize() {
-    SetConsoleCP(CP_UTF8);
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleTitleW(L"Ersteinrichtung");
-    const HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD mode{};
-    if (GetConsoleMode(out, &mode)) SetConsoleMode(out, mode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    setConsoleSize();
-    color(normal);
-}
-void color(WORD value) { SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), value); }
-void clear() {
-    const HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_SCREEN_BUFFER_INFO info{};
-    if (!GetConsoleScreenBufferInfo(out, &info)) return;
-    const DWORD cells = static_cast<DWORD>(info.dwSize.X) * static_cast<DWORD>(info.dwSize.Y);
-    DWORD written{};
-    const COORD origin{};
-    FillConsoleOutputCharacterW(out, L' ', cells, origin, &written);
-    FillConsoleOutputAttribute(out, normal, cells, origin, &written);
-    SetConsoleCursorPosition(out, origin);
-}
-void write(const std::wstring& text, WORD value) {
-    color(value); std::wcout << text; color(normal);
-}
-void line(const std::wstring& text, WORD value) { write(text + L"\n", value); }
-void separator(const std::wstring& label, WORD value, int width) {
-    if (label.empty()) { line(std::wstring(static_cast<std::size_t>(width), L'-'), value); return; }
-    const int remaining = (std::max)(0, width - static_cast<int>(label.size()));
-    const int left = remaining / 2;
-    const int right = remaining - left;
-    line(std::wstring(static_cast<std::size_t>(left), L'-') + label + std::wstring(static_cast<std::size_t>(right), L'-'), value);
-}
-std::wstring prompt(const std::wstring& label) {
-    write(label, highlight);
-    std::wstring value;
-    std::getline(std::wcin, value);
-    while (!value.empty() && std::iswspace(value.back())) value.pop_back();
-    auto first = std::find_if_not(value.begin(), value.end(), [](wchar_t c) { return std::iswspace(c); });
-    value.erase(value.begin(), first);
-    return value;
-}
-bool yesNo(const std::wstring& label, bool defaultNo) {
-    const auto answer = prompt(label + (defaultNo ? L" [y/N]: " : L" [Y/n]: "));
-    if (answer.empty()) return !defaultNo;
-    return answer == L"y" || answer == L"Y" || answer == L"j" || answer == L"J";
-}
-bool confirmExact(const std::wstring& phrase) {
-    line(L"This action changes the system.", warning);
-    return prompt(L"Type exactly [" + phrase + L"]: ") == phrase;
-}
-void pause() { (void)prompt(L"\nPress Enter to continue..."); }
+void initialize(){SetConsoleCP(CP_UTF8);SetConsoleOutputCP(CP_UTF8);SetConsoleTitleW(L"Ersteinrichtung");resize();color(normal);}void color(WORD v){SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),v);}void clear(){HANDLE h=GetStdHandle(STD_OUTPUT_HANDLE);CONSOLE_SCREEN_BUFFER_INFO i{};if(!GetConsoleScreenBufferInfo(h,&i))return;DWORD cells=(DWORD)i.dwSize.X*(DWORD)i.dwSize.Y,w{};COORD o{};FillConsoleOutputCharacterW(h,L' ',cells,o,&w);FillConsoleOutputAttribute(h,normal,cells,o,&w);SetConsoleCursorPosition(h,o);}void write(const std::wstring& t,WORD v){HANDLE h=GetStdHandle(STD_OUTPUT_HANDLE);color(v);DWORD mode{},w{};if(GetConsoleMode(h,&mode))WriteConsoleW(h,t.data(),(DWORD)t.size(),&w,nullptr);else{auto b=utf8(t);WriteFile(h,b.data(),(DWORD)b.size(),&w,nullptr);}color(normal);}void line(const std::wstring& t,WORD v){write(t+L"\n",v);}void separator(const std::wstring& l,WORD v,int width){if(l.empty()){line(std::wstring((size_t)width,L'-'),v);return;}int r=(std::max)(0,width-(int)l.size()),a=r/2;line(std::wstring((size_t)a,L'-')+l+std::wstring((size_t)(r-a),L'-'),v);}std::wstring prompt(const std::wstring& l){write(l,highlight);HANDLE h=GetStdHandle(STD_INPUT_HANDLE);DWORD mode{};std::wstring v;if(GetConsoleMode(h,&mode)){std::vector<wchar_t>b(4096);DWORD n{};if(ReadConsoleW(h,b.data(),(DWORD)b.size()-1,&n,nullptr))v.assign(b.data(),n);}else std::getline(std::wcin,v);while(!v.empty()&&(v.back()==L'\r'||v.back()==L'\n'||std::iswspace(v.back())))v.pop_back();auto a=std::find_if_not(v.begin(),v.end(),[](wchar_t c){return std::iswspace(c);});v.erase(v.begin(),a);return v;}bool yesNo(const std::wstring& l,bool dn){auto a=prompt(l+(dn?i18n::tr("prompt.yes_no_default_no"):i18n::tr("prompt.yes_no_default_yes")));if(a.empty())return !dn;return a==L"y"||a==L"Y"||a==L"j"||a==L"J";}bool confirm(const std::wstring& d,bool irrev){line(d,warning);if(irrev)line(i18n::tr("confirm.irreversible"),warning);return yesNo(i18n::tr("confirm.question"));}void pause(){(void)prompt(L"\n"+i18n::tr("prompt.continue"));}
 }
