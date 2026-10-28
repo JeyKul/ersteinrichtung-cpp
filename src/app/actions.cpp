@@ -33,7 +33,7 @@ bool setDword(HKEY root, const wchar_t* path, const wchar_t* name, DWORD value) 
 bool setString(HKEY root, const wchar_t* path, const wchar_t* name, const wchar_t* value) {
     HKEY key{}; if (RegCreateKeyExW(root, path, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr) != ERROR_SUCCESS) return false;
     const DWORD size = static_cast<DWORD>((wcslen(value) + 1) * sizeof(wchar_t));
-    const LONG result = RegSetValueExW(key, name, 0, REG_SZ, reinterpret_cast<const BYTE*>(value), size);
+    const LONG result = RegSetValueExW(key, name, 0, REG_SZ, reinterpret_cast<const BYTE*>(&value), size);
     RegCloseKey(key); return result == ERROR_SUCCESS;
 }
 std::wstring cleanModel(std::wstring model) {
@@ -217,8 +217,9 @@ bool Actions::enableLtscUpgradePath() {
 }
 void Actions::showTools() {
     for (;;) {
-        core::console::clear(); line(L"=== TOOLS ===", core::console::accent);
-        line(L"  1. WinDirStat\n  2. Advanced IP Scanner\n  3. Lenovo Service Bridge/System Update\n  4. System information\n  5. Windows Update\n  6. PowerShell 7\n  7. Clear TEMP\n  0. Back");
+        core::console::clear(); core::console::separator(L"TOOLS");
+        line(L"1.  WinDirStat\n2.  Advanced IP Scanner\n3.  Lenovo Service Bridge/System Update\n4.  System Informationen\n5.  Windows Update\n6.  PowerShell 7\n7.  TEMP leeren");
+        core::console::separator(); line(L"0.  Zurück", core::console::highlight); line();
         const auto c=core::console::prompt(L"Select: "); if(c==L"0") return;
         if(c==L"1") downloadAndLaunch(L"WinDirStat installer",L"https://github.com/windirstat/windirstat/releases/latest/download/WinDirStat-x64.msi",L"WinDirStat-x64.msi",{},false);
         else if(c==L"2") downloadAndLaunch(L"Advanced IP Scanner",L"https://download.advanced-ip-scanner.com/download/files/Advanced_IP_Scanner_2.5.4594.1.exe",L"Advanced_IP_Scanner_2.5.4594.1.exe",{},false);
@@ -232,8 +233,9 @@ void Actions::showTools() {
 }
 void Actions::showExtras() {
     for (;;) {
-        core::console::clear(); line(L"=== EXTRAS ===", core::console::accent);
-        line(L"  1. Open Windows Store installer (LTSC)\n  2. Open App Installer/WinGet Store page\n  3. Enable LTSC -> Pro upgrade path\n 10. Export drivers\n 11. Install exported drivers\n  0. Back");
+        core::console::clear(); core::console::separator(L"EXTRAS");
+        line(L"1.  Windows Store installieren (LTSC)\n2.  App Installer / WinGet Store-Seite öffnen\n3.  LTSC -> Pro Upgrade-Pfad aktivieren\n10. Treiber exportieren\n11. Exportierte Treiber installieren");
+        core::console::separator(); line(L"0.  Zurück", core::console::highlight); line();
         const auto c=core::console::prompt(L"Select: "); if(c==L"0") return;
         if(c==L"1") runLogged(L"Install Windows Store",core::windowsSystemExecutable(L"wsreset.exe"),{L"-i"},true);
         else if(c==L"2") core::shellOpen(L"ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1");
@@ -242,4 +244,3 @@ void Actions::showExtras() {
     }
 }
 }
-
