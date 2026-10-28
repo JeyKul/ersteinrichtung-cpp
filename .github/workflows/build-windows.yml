@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    name: Release / Visual Studio 2022
+    name: Release / MSVC x64
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -28,17 +28,31 @@ jobs:
         shell: pwsh
         run: ./.github/scripts/check-lang.ps1
 
+      - name: Initialize MSVC x64 environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - name: Show tool versions
+        shell: pwsh
+        run: |
+          cmake --version
+          ninja --version
+          cl
+
       - name: Configure CMake
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+        shell: pwsh
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       - name: Build Release
-        run: cmake --build build --config Release --parallel
+        shell: pwsh
+        run: cmake --build build --parallel
 
       - name: Verify and stage package
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $exe = Join-Path $PWD 'build\Release\Ersteinrichtung.exe'
+          $exe = Join-Path $PWD 'build\Ersteinrichtung.exe'
           if (-not (Test-Path $exe)) {
             throw "Build succeeded but $exe was not created."
           }
@@ -46,17 +60,17 @@ jobs:
           New-Item -ItemType Directory -Force -Path 'dist' | Out-Null
           Copy-Item $exe 'dist\Ersteinrichtung.exe'
 
-          $pdb = Join-Path $PWD 'build\Release\Ersteinrichtung.pdb'
+          $pdb = Join-Path $PWD 'build\Ersteinrichtung.pdb'
           if (Test-Path $pdb) {
             Copy-Item $pdb 'dist\Ersteinrichtung.pdb'
           }
 
-          $assets = Join-Path $PWD 'build\Release\assets'
+          $assets = Join-Path $PWD 'build\assets'
           if (Test-Path $assets) {
             Copy-Item $assets 'dist\assets' -Recurse
           }
 
-          $lang = Join-Path $PWD 'build\Release\lang'
+          $lang = Join-Path $PWD 'build\lang'
           if (-not (Test-Path $lang)) { throw 'Language files were not packaged.' }
           Copy-Item $lang 'dist\lang' -Recurse
 
