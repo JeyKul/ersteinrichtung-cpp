@@ -65,7 +65,7 @@ bool runBatch(Actions& a,bool rename,bool business) {
     ok=(business?a.installBusinessRemote():a.installSupremo())&&ok;
     ok=a.installDefaultPrograms()&&ok;
     ok=a.installWindowsUpdates()&&ok;
-    if(business) ok=a.applyPrivacy()&&ok;
+    if(business) ok=a.applyEnhancedPrivacy()&&ok;
     a.setPreventSleep(false);
     line(ok?L"Batch finished.":L"Batch finished with errors. Check the log.",ok?core::console::good:core::console::warning);
     return ok;
@@ -78,8 +78,8 @@ void runMainMenu(Actions& a,core::Logger& logger) {
         const auto c=core::console::prompt(L"Select an option: "); if(c==L"0"||c==L"q"||c==L"Q"){logger.write(L"Session finished");return;}
         if(c==L"1")runBatch(a,true,false); else if(c==L"2")runBatch(a,true,true); else if(c==L"3")runBatch(a,false,false); else if(c==L"4")runBatch(a,false,true);
         else if(c==L"5")a.renameComputer(); else if(c==L"6")a.ensureChocolatey(); else if(c==L"7")a.installSupremo(); else if(c==L"8")a.installBusinessRemote();
-        else if(c==L"9")a.installDefaultPrograms(); else if(c==L"10")a.installWindowsUpdates(); else if(c==L"11")a.showTools(); else if(c==L"12")a.showExtras(); else if(c==L"13")bitlocker::showMenu(logger);
-        else if(c==L"19")a.runSysprep(); else if(c==L"20")a.runWhyNotWin11(); else if(c==L"21")a.showSecurityStatus(); else if(c==L"22")a.applyPrivacy();
+        else if(c==L"9")a.installDefaultPrograms(); else if(c==L"10")a.installWindowsUpdates(); else if(c==L"11")a.showTools(); else if(c==L"12")a.showExtrasEnhanced(); else if(c==L"13")bitlocker::showMenu(logger);
+        else if(c==L"19")a.runSysprep(); else if(c==L"20")a.runWhyNotWin11(); else if(c==L"21")a.showSecurityStatus(); else if(c==L"22")a.applyEnhancedPrivacy(); else if(c==L"7000")a.runDiagnostics();
         if(c!=L"11"&&c!=L"12"&&c!=L"13") core::console::pause();
     }
 }
