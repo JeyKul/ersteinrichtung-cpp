@@ -2,6 +2,7 @@
 
 #include "../bitlocker/bitlocker_menu.hpp"
 #include "../core/console.hpp"
+#include "../core/download.hpp"
 #include "../core/i18n.hpp"
 #include "../core/system.hpp"
 
