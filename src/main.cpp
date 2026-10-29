@@ -3,6 +3,7 @@
 
 #include "app/actions.hpp"
 #include "app/menus.hpp"
+#include "app/power.hpp"
 #include "core/console.hpp"
 #include "core/i18n.hpp"
 #include "core/logger.hpp"
@@ -14,6 +15,7 @@
 #include <string_view>
 
 namespace {
+
 std::wstring quoteArgument(const std::wstring& argument) {
     if (argument.empty()) return L"\"\"";
     if (argument.find_first_of(L" \t\n\v\"") == std::wstring::npos) return argument;
@@ -72,25 +74,41 @@ bool requestElevation(int argc, wchar_t** argv) {
 
 void showFatal(const std::wstring& message) {
     core::console::line(message, core::console::error);
-    MessageBoxW(nullptr, message.c_str(), L"Ersteinrichtung", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+    MessageBoxW(
+        nullptr,
+        message.c_str(),
+        L"Ersteinrichtung",
+        MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
 }
-}
+
+} // namespace
 
 int wmain(int argc, wchar_t** argv) {
     core::console::initialize();
     core::i18n::initialize();
 
     if (!core::isAdministrator()) {
-        if (!hasArgument(argc, argv, L"--elevation-requested") && requestElevation(argc, argv)) return 0;
+        if (!hasArgument(argc, argv, L"--elevation-requested") &&
+            requestElevation(argc, argv)) {
+            return 0;
+        }
         showFatal(core::i18n::tr("app.admin_required"));
         return 1;
     }
 
     try {
         core::Logger logger;
+
+        // Both policies start immediately after elevation. The sleep request is
+        // released automatically when this process exits; hibernation/Fast
+        // Startup remain disabled as the intended setup default.
+        app::SessionSleepGuard sleepGuard(logger);
+        app::disableHibernationAndFastStartup(logger);
+
         if (argc > 1 && std::wstring_view(argv[1]) == L"--privacy-enforce") {
             return app::applyPrivacyEnforcement(logger) ? 0 : 3;
         }
+
         app::Actions actions(logger);
         app::runMainMenu(actions, logger);
     } catch (const std::exception&) {
